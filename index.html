@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulatore Fattorino - Hardcore Mode</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background-color: #2b2b2b; 
+            color: #f4f4f4; 
+            margin: 0; 
+            padding: 10px;
+            overscroll-behavior: none; 
+        }
+        
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: #3c3f41; 
+            padding: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); 
+            box-sizing: border-box;
+        }
+        
+        h1 { margin: 0 0 15px 0; font-size: 20px; color: #ff5252;}
+        
+        .ai-panel { background: #1e1e1e; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3; text-align: left; font-size: 14px;}
+        .ai-panel span { font-weight: bold; color: #64b5f6; }
+        .dialogue { font-style: italic; color: #a5d6a7; margin-top: 5px; }
+
+        .display { background: #000; color: #0f0; font-size: 16px; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-family: monospace; text-align: left;}
+        .display div { margin-bottom: 4px; }
+        .display span { font-weight: bold; font-size: 18px;}
+        hr { border-color: #444; margin: 8px 0; }
+        
+        .interaction { background: #455a64; padding: 12px; border-radius: 8px; margin-bottom: 15px; text-align: left; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;}
+        .interaction label { width: 100%; color: white; font-size: 14px; margin-bottom: 5px;}
+        .interaction input { padding: 10px; font-size: 16px; width: 70px; text-align: center; border: none; border-radius: 6px;}
+        .interaction button { padding: 10px 15px; background: #ff9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex-grow: 1;}
+
+        .money-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+        .btn-money { 
+            padding: 12px 5px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 8px; 
+            transition: 0.1s;
+            touch-action: manipulation; 
+        }
+        .btn-money:disabled { opacity: 0.3; cursor: not-allowed;}
+        .btn-bill { background-color: #4CAF50; color: white; }
+        .btn-coin { background-color: #FFC107; color: #333; }
+        .qty { font-size: 11px; display: block; margin-top: 4px; opacity: 0.9;}
+
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-action, .btn-reset, .btn-next { padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 14px; touch-action: manipulation;}
+        .btn-action { background-color: #2196F3; }
+        .btn-reset { background-color: #f44336; }
+        .btn-next { background-color: #9C27B0; grid-column: span 2;}
+
+        #feedback { font-size: 14px; font-weight: bold; margin-top: 15px; padding: 12px; border-radius: 8px; min-height: 20px;}
+
+        @media (max-width: 360px) {
+            .btn-money { font-size: 14px; padding: 10px 2px; }
+            h1 { font-size: 18px; }
+            .display span { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🛵 Simulatore Fattorino: Hardcore</h1>
+    
+    <div class="ai-panel">
+        <div>👤 Cliente: <span id="tipo-cliente">Caricamento...</span></div>
+        <div class="dialogue" id="dialogo-cliente">"..."</div>
+    </div>
+
+    <div class="display">
+        <div>📝 Totale Ordine: <span id="totale">0.00</span>€</div>
+        <div>💵 Ti dà: <span id="pagato">0.00</span>€</div>
+        <hr>
+        <div>✋ Hai preparato: <span id="resto_attuale">0.00</span>€</div>
+    </div>
+
+    <div class="interaction">
+        <label>🗣️ Chiedi se ha spiccioli per aiutarti:</label>
+        <input type="number" id="input-extra" step="0.10" placeholder="0.50">
+        <button id="btn-chiedi" onclick="chiediSpiccioli()">Chiedi</button>
+    </div>
+
+    <div class="money-grid" id="money-grid"></div>
+
+    <div class="controls">
+        <button class="btn-action" onclick="confermaResto()">✅ Dai Resto</button>
+        <button class="btn-reset" onclick="azzeraMano()">🔄 Svuota mano</button>
+        <button class="btn-next" onclick="nuovoCliente()">🚶‍♂️ Prossimo Cliente</button>
+    </div>
+
+    <div id="feedback" style="background: #333;"></div>
+</div>
+
+<script>
+    const tagli = [
+        { val: 2000, label: "20€", type: "bill" }, { val: 1000, label: "10€", type: "bill" },
+        { val: 500,  label: "5€",  type: "bill" }, { val: 200,  label: "2€",  type: "coin" },
+        { val: 100,  label: "1€",  type: "coin" }, { val: 50,   label: "50c", type: "coin" },
+        { val: 20,   label: "20c", type: "coin" }, { val: 10,   label: "10c", type: "coin" },
+        { val: 5,    label: "5c",  type: "coin" }
+    ];
+
+    let cassa = { 2000:0, 1000:0, 500:2, 200:5, 100:5, 50:6, 20:5, 10:5, 5:5 }; 
+    let mano = { 2000:0, 1000:0, 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0 };
+
+    let totaleCents = 0, pagatoCents = 0, restoAttualeCents = 0;
+    let haGiaChiesto = false;
+    let clienteIA = {};
+
+    const personas = [
+        { 
+            nome: "Lo Studente", 
+            probSpiccioli: 0.8,
+            dialogo: "Ciao! Grazie mille, ho una fame assurda.",
+            calcolaPagamento: (totale) => {
+                let p = [1000, 2000].find(v => v >= totale) || 5000;
+                return Math.random() > 0.5 ? totale : p;
+            }
+        },
+        { 
+            nome: "Lavoratore di fretta", 
+            probSpiccioli: 0.2,
+            dialogo: "Sì ciao, ecco i soldi, fai alla svelta per favore.",
+            calcolaPagamento: (totale) => [2000, 5000].find(v => v >= totale) || 5000
+        },
+        { 
+            nome: "Signora Anziana", 
+            probSpiccioli: 0.9,
+            dialogo: "Buonasera giovanotto. Mi scusi ma ho solo pezzi grossi.",
+            calcolaPagamento: (totale) => 5000
+        }
+    ];
+
+    function format(cents) { return (cents / 100).toFixed(2); }
+
+    function nuovoCliente() {
+        clienteIA = personas[Math.floor(Math.random() * personas.length)];
+        document.getElementById('tipo-cliente').innerText = clienteIA.nome;
+        document.getElementById('dialogo-cliente').innerText = `"${clienteIA.dialogo}"`;
+
+        totaleCents = Math.floor(Math.random() * 225 + 60) * 10;
+        pagatoCents = clienteIA.calcolaPagamento(totaleCents);
+
+        aggiungiACassa(pagatoCents);
+        azzeraManoInternal();
+        haGiaChiesto = false;
+        document.getElementById('btn-chiedi').disabled = false;
+        document.getElementById('input-extra').value = '';
+        
+        mostraFeedback("Fai i conti a mente e prepara il resto...", "#fff", "#333");
+        aggiornaDisplay();
+    }
+
+    function aggiungiACassa(centesimi) {
+        for (let t of tagli) {
+            while (centesimi >= t.val) { cassa[t.val]++; centesimi -= t.val; }
+        }
+    }
+
+    function aggiungiAMano(val) {
+        if (cassa[val] > 0) { cassa[val]--; mano[val]++; restoAttualeCents += val; aggiornaDisplay(); }
+    }
+
+    function azzeraManoInternal() {
+        for (let t of tagli) { cassa[t.val] += mano[t.val]; mano[t.val] = 0; }
+        restoAttualeCents = 0;
+    }
+
+    function azzeraMano() { azzeraManoInternal(); aggiornaDisplay(); }
+
+    function chiediSpiccioli() {
+        if (haGiaChiesto) return;
+        let input = document.getElementById('input-extra').value;
+        let chiestoCents = Math.round(parseFloat(input.replace(',','.')) * 100);
+        
+        if (isNaN(chiestoCents) || chiestoCents <= 0) return mostraFeedback("Inserisci un importo valido!", "#fff", "#d32f2f");
+
+        haGiaChiesto = true;
+        document.getElementById('btn-chiedi').disabled = true;
+
+        if (Math.random() < clienteIA.probSpiccioli) {
+            pagatoCents += chiestoCents;
+            aggiungiACassa(chiestoCents);
+            document.getElementById('dialogo-cliente').innerText = `"Sì, dovrei averli qua in tasca... ecco a te ${format(chiestoCents)}€."`;
+            mostraFeedback("Ti ha dato gli spiccioli! Ricalcola a mente.", "#fff", "#388e3c");
+        } else {
+            document.getElementById('dialogo-cliente').innerText = `"Mi dispiace, non ho spiccioli."`;
+            mostraFeedback("Niente spiccioli. Devi arrangiarti!", "#fff", "#f57c00");
+        }
+        aggiornaDisplay();
+    }
+
+    function confermaResto() {
+        let obiettivoCents = pagatoCents - totaleCents;
+        
+        if (obiettivoCents > 0 && obiettivoCents <= 100 && Math.random() < 0.3) {
+            document.getElementById('dialogo-cliente').innerText = `"Tenga pure il resto, buon lavoro!"`;
+            obiettivoCents = 0; 
+        }
+
+        if (restoAttualeCents === obiettivoCents) {
+            mostraFeedback(`✅ PERFETTO! Era esattamente ${format(obiettivoCents)}€.`, "#fff", "#2e7d32");
+            for (let t of tagli) mano[t.val] = 0; 
+            restoAttualeCents = 0;
+            aggiornaDisplay();
+        } else {
+            // Se sbaglia, gli diciamo quale DOVEVA essere il resto corretto
+            mostraFeedback(`❌ SBAGLIATO! Hai preparato ${format(restoAttualeCents)}€, ma dovevi dare ${format(obiettivoCents)}€.`, "#fff", "#c62828");
+            azzeraMano(); // Gli fa rimettere i soldi in cassa così può riprovare
+        }
+    }
+
+    function mostraFeedback(testo, colTesto, colSfondo) {
+        let fb = document.getElementById('feedback');
+        fb.innerText = testo; fb.style.color = colTesto; fb.style.backgroundColor = colSfondo;
+    }
+
+    function aggiornaDisplay() {
+        document.getElementById('totale').innerText = format(totaleCents);
+        document.getElementById('pagato').innerText = format(pagatoCents);
+        document.getElementById('resto_attuale').innerText = format(restoAttualeCents);
+
+        const grid = document.getElementById('money-grid');
+        grid.innerHTML = '';
+        tagli.forEach(t => {
+            let btn = document.createElement('button');
+            btn.className = `btn-money ${t.type === 'bill' ? 'btn-bill' : 'btn-coin'}`;
+            btn.onclick = () => aggiungiAMano(t.val);
+            btn.innerHTML = `${t.label} <span class="qty">Cassa: ${cassa[t.val]}</span>`;
+            if (cassa[t.val] === 0) btn.disabled = true;
+            grid.appendChild(btn);
+        });
+    }
+
+    nuovoCliente();
+</script>
+
+</body>
+</html>
